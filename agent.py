@@ -35,7 +35,7 @@ class TrendAgent:
                 ],
                 "cast": ["Cillian Murphy", "Emily Blunt", "Matt Damon", "Robert Downey Jr.", "Florence Pugh"],
                 "explanation_of_trend": "Oscar-winning biopic that dominated awards season and box office. Trending due to recent Oscar wins and continued popularity.",
-                "imdb_id": "tt34683290"
+                "imdb_id": "tt15398776"
             },
             "wednesday": {
                 "title": "Wednesday",

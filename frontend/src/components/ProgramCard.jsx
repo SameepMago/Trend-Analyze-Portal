@@ -1,18 +1,56 @@
-import React from 'react';
-import { Film, Tv, Calendar, Users, TrendingUp, TrendingDown } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Film, Tv, Calendar, Users, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
+import { tmdbAPI } from '../services/api';
 
 const ProgramCard = ({ program, onClick, isTrending = true }) => {
+  const [posterPath, setPosterPath] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPoster = async () => {
+      if (program.imdb_id) {
+        try {
+          setLoading(true);
+          const tmdbData = program.program_type === 'movie' 
+            ? await tmdbAPI.getMovieByImdbId(program.imdb_id)
+            : await tmdbAPI.getTVShowByImdbId(program.imdb_id);
+          
+          if (tmdbData.poster_path) {
+            setPosterPath(tmdbData.poster_path);
+          }
+        } catch (error) {
+          console.error('Error fetching poster:', error);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
+    };
+
+    fetchPoster();
+  }, [program.imdb_id, program.program_type]);
+
   return (
     <div className={`program-card ${isTrending ? 'trending' : 'not-trending'}`} onClick={() => onClick(program)}>
       <div className="movie-details">
         <div className="program-poster">
-          <img 
-            src={`https://image.tmdb.org/t/p/w300${program.poster_path || '/d5NXSklXo0qyIYkgV94XAgMIckC.jpg'}`}
-            alt={program.title}
-            onError={(e) => {
-              e.target.src = 'https://via.placeholder.com/80x120/667eea/ffffff?text=👤';
-            }}
-          />
+          {loading ? (
+            <div className="poster-loading">
+              <Loader2 className="loading-spinner" />
+            </div>
+          ) : (
+            <img 
+              src={posterPath 
+                ? `https://image.tmdb.org/t/p/w300${posterPath}`
+                : 'https://via.placeholder.com/80x120/667eea/ffffff?text=No+Image'
+              }
+              alt={program.title}
+              onError={(e) => {
+                e.target.src = 'https://via.placeholder.com/80x120/667eea/ffffff?text=No+Image';
+              }}
+            />
+          )}
         </div>
         
         <div className="movie-info">
