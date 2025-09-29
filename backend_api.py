@@ -5,12 +5,15 @@ Connects the React frontend to the agent backend
 
 import asyncio
 import traceback
+import json
+import uuid
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import sys
 import os
+from datetime import datetime
 
 # Import agent from current directory
 try:
@@ -20,6 +23,28 @@ except ImportError as e:
     print(f"Warning: Could not import TrendAgent: {e}")
     print("Make sure the agent.py file is in the same directory as backend_api.py")
     TrendAgent = None
+
+# WebSocket connection manager
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[str, WebSocket] = {}
+    
+    async def connect(self, websocket: WebSocket, client_id: str):
+        await websocket.accept()
+        self.active_connections[client_id] = websocket
+    
+    def disconnect(self, client_id: str):
+        if client_id in self.active_connections:
+            del self.active_connections[client_id]
+    
+    async def send_log(self, client_id: str, log_data: dict):
+        if client_id in self.active_connections:
+            try:
+                await self.active_connections[client_id].send_text(json.dumps(log_data))
+            except:
+                self.disconnect(client_id)
+
+manager = ConnectionManager()
 
 app = FastAPI(
     title="Trend Analysis Portal API",
@@ -50,6 +75,13 @@ class HealthResponse(BaseModel):
     status: str
     message: str
 
+class LogEntry(BaseModel):
+    timestamp: str
+    level: str
+    category: str
+    message: str
+    data: Optional[Dict[str, Any]] = None
+
 @app.get("/", response_model=HealthResponse)
 async def root():
     """Root endpoint for health check"""
@@ -67,8 +99,30 @@ async def health_check():
         message=f"API is running. Agent: {agent_status}"
     )
 
+@app.get("/ws/test")
+async def websocket_test():
+    """Test endpoint to verify WebSocket support"""
+    return {"message": "WebSocket endpoint is accessible", "active_connections": len(manager.active_connections)}
+
+@app.websocket("/ws/logs/{client_id}")
+async def websocket_logs(websocket: WebSocket, client_id: str):
+    """WebSocket endpoint for real-time logs"""
+    print(f"WebSocket connection attempt from client: {client_id}")
+    try:
+        await manager.connect(websocket, client_id)
+        print(f"WebSocket connected successfully for client: {client_id}")
+        while True:
+            # Keep connection alive
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        print(f"WebSocket disconnected for client: {client_id}")
+        manager.disconnect(client_id)
+    except Exception as e:
+        print(f"WebSocket error for client {client_id}: {e}")
+        manager.disconnect(client_id)
+
 @app.post("/api/analyze-trends", response_model=TrendResponse)
-async def analyze_trends(request: TrendRequest):
+async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
     """
     Analyze trending keywords using the agent
     """
@@ -87,9 +141,19 @@ async def analyze_trends(request: TrendRequest):
         # Initialize agent
         agent = TrendAgent()
         
+        # Send initial log
+        if client_id:
+            await manager.send_log(client_id, {
+                "timestamp": datetime.now().isoformat(),
+                "level": "INFO",
+                "category": "ANALYSIS",
+                "message": f"Starting trend analysis for: {', '.join(request.keywords)}",
+                "data": {"keywords": request.keywords}
+            })
+        
         # Run agent analysis
         print(f"Analyzing trends: {request.keywords}")
-        selected_program, error_message = await agent.run(request.keywords)
+        selected_program, error_message = await agent.run(request.keywords, client_id, manager)
         
         # Handle successful analysis
         if selected_program and not error_message:
@@ -112,11 +176,36 @@ async def analyze_trends(request: TrendRequest):
                 "message": "Successfully identified trending program"
             }
             
+            # Send completion log and disconnect WebSocket
+            if client_id:
+                await manager.send_log(client_id, {
+                    "timestamp": datetime.now().isoformat(),
+                    "level": "INFO",
+                    "category": "RESULT",
+                    "message": "Analysis completed successfully",
+                    "data": {"result": "trending_program_found"}
+                })
+                # Disconnect WebSocket after completion
+                manager.disconnect(client_id)
+            
             return TrendResponse(**response_data)
         
         # Handle agent error
         elif error_message:
             print(f"Agent completed with an error: {error_message}")
+            
+            # Send error log and disconnect WebSocket
+            if client_id:
+                await manager.send_log(client_id, {
+                    "timestamp": datetime.now().isoformat(),
+                    "level": "ERROR",
+                    "category": "RESULT",
+                    "message": "Analysis completed with error",
+                    "data": {"error": error_message}
+                })
+                # Disconnect WebSocket after completion
+                manager.disconnect(client_id)
+            
             return TrendResponse(
                 success=False,
                 error=error_message,
@@ -126,6 +215,19 @@ async def analyze_trends(request: TrendRequest):
         # Handle no program found
         else:
             print("No trending program found")
+            
+            # Send no result log and disconnect WebSocket
+            if client_id:
+                await manager.send_log(client_id, {
+                    "timestamp": datetime.now().isoformat(),
+                    "level": "INFO",
+                    "category": "RESULT",
+                    "message": "Analysis completed - no program found",
+                    "data": {"result": "no_program_found"}
+                })
+                # Disconnect WebSocket after completion
+                manager.disconnect(client_id)
+            
             return TrendResponse(
                 success=True,
                 program_is_trending=False,

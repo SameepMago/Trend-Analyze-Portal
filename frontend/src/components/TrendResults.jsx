@@ -5,6 +5,7 @@ const TrendResults = ({
   trendResults, 
   processingStatus, 
   onMovieClick,
+  onOpenLogs,
   error,
   loadingMovieId 
 }) => {
@@ -37,6 +38,7 @@ const TrendResults = ({
             index={index}
             processingStatus={processingStatus}
             onMovieClick={onMovieClick}
+            onOpenLogs={onOpenLogs}
             loadingMovieId={loadingMovieId}
           />
         ))}

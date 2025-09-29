@@ -6,6 +6,7 @@ Returns different response types based on input keywords for comprehensive testi
 import asyncio
 import random
 from typing import List, Dict, Any, Optional, Tuple
+from datetime import datetime
 
 class TrendAgent:
     """Mock agent that returns different response types for testing"""
@@ -23,7 +24,7 @@ class TrendAgent:
                 ],
                 "cast": ["Timothée Chalamet", "Zendaya", "Rebecca Ferguson", "Josh Brolin", "Stellan Skarsgård", "Dave Bautista"],
                 "explanation_of_trend": "Latest blockbuster sequel with stellar cast and impressive box office performance. Trending due to recent release and strong critical reception.",
-                "imdb_id": "tt15398776"
+                "imdb_id": "tt15239678"
             },
             "oppenheimer": {
                 "title": "Oppenheimer",
@@ -91,48 +92,148 @@ class TrendAgent:
             }
         }
     
-    async def run(self, trend_list: List[str]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    async def run(self, trend_list: List[str], client_id: str = None, manager = None) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         """
         Mock agent run method that returns different response types based on keywords
         
         Args:
             trend_list: List of trend keywords
+            client_id: WebSocket client ID for live logs
+            manager: WebSocket connection manager
             
         Returns:
             Tuple of (selected_program, error_message)
         """
-        # Simulate processing time
-        await asyncio.sleep(random.uniform(1, 3))
+        # Send log about starting analysis
+        if client_id and manager:
+            await manager.send_log(client_id, {
+                "timestamp": datetime.now().isoformat(),
+                "level": "INFO",
+                "category": "AGENT",
+                "message": "Agent initialized, starting trend analysis...",
+                "data": {"keywords": trend_list}
+            })
+        
+        # Simulate processing time with intermediate logs
+        processing_steps = [
+            ("SEARCH", "Searching social media platforms..."),
+            ("ANALYZE", "Analyzing trending patterns..."),
+            ("VALIDATE", "Validating program data..."),
+            ("MATCH", "Matching programs to trends...")
+        ]
+        
+        for step, message in processing_steps:
+            if client_id and manager:
+                await manager.send_log(client_id, {
+                    "timestamp": datetime.now().isoformat(),
+                    "level": "INFO",
+                    "category": step,
+                    "message": message,
+                    "data": {"step": step}
+                })
+            await asyncio.sleep(random.uniform(0.5, 1.0))
         
         # Combine all keywords for matching
         combined_keywords = " ".join(trend_list).lower()
         
         # Check for specific test cases
         if "dune" in combined_keywords:
+            if client_id and manager:
+                await manager.send_log(client_id, {
+                    "timestamp": datetime.now().isoformat(),
+                    "level": "INFO",
+                    "category": "MATCH",
+                    "message": "Found trending program: Dune: Part Two",
+                    "data": {"program": "Dune: Part Two", "reason": "Recent blockbuster sequel"}
+                })
             return self.mock_data["dune"], None
             
         elif "oppenheimer" in combined_keywords:
+            if client_id and manager:
+                await manager.send_log(client_id, {
+                    "timestamp": datetime.now().isoformat(),
+                    "level": "INFO",
+                    "category": "MATCH",
+                    "message": "Found trending program: Oppenheimer",
+                    "data": {"program": "Oppenheimer", "reason": "Oscar-winning biopic"}
+                })
             return self.mock_data["oppenheimer"], None
             
         elif "wednesday" in combined_keywords:
+            if client_id and manager:
+                await manager.send_log(client_id, {
+                    "timestamp": datetime.now().isoformat(),
+                    "level": "INFO",
+                    "category": "MATCH",
+                    "message": "Found trending program: Wednesday",
+                    "data": {"program": "Wednesday", "reason": "Netflix viral hit series"}
+                })
             return self.mock_data["wednesday"], None
             
         elif "game of thrones" in combined_keywords or "got" in combined_keywords:
+            if client_id and manager:
+                await manager.send_log(client_id, {
+                    "timestamp": datetime.now().isoformat(),
+                    "level": "WARN",
+                    "category": "MATCH",
+                    "message": "Found program but not trending: Game of Thrones",
+                    "data": {"program": "Game of Thrones", "reason": "Classic series, ended in 2019"}
+                })
             return self.mock_data["game of thrones"], None
             
         elif "breaking bad" in combined_keywords:
+            if client_id and manager:
+                await manager.send_log(client_id, {
+                    "timestamp": datetime.now().isoformat(),
+                    "level": "WARN",
+                    "category": "MATCH",
+                    "message": "Found program but not trending: Breaking Bad",
+                    "data": {"program": "Breaking Bad", "reason": "Highly acclaimed but ended in 2013"}
+                })
             return self.mock_data["breaking bad"], None
             
         elif "error" in combined_keywords:
+            if client_id and manager:
+                await manager.send_log(client_id, {
+                    "timestamp": datetime.now().isoformat(),
+                    "level": "ERROR",
+                    "category": "ERROR",
+                    "message": "Agent analysis failed: Connection error",
+                    "data": {"error": "Unable to connect to search service"}
+                })
             return None, self.mock_data["error"]["error"]
             
         elif "timeout" in combined_keywords:
+            if client_id and manager:
+                await manager.send_log(client_id, {
+                    "timestamp": datetime.now().isoformat(),
+                    "level": "ERROR",
+                    "category": "ERROR",
+                    "message": "Agent analysis failed: Timeout error",
+                    "data": {"error": "Request timeout while searching"}
+                })
             return None, self.mock_data["timeout"]["error"]
             
         elif "invalid" in combined_keywords:
+            if client_id and manager:
+                await manager.send_log(client_id, {
+                    "timestamp": datetime.now().isoformat(),
+                    "level": "ERROR",
+                    "category": "ERROR",
+                    "message": "Agent analysis failed: Invalid input",
+                    "data": {"error": "Invalid input format provided"}
+                })
             return None, self.mock_data["invalid"]["error"]
             
         elif "random" in combined_keywords or "gibberish" in combined_keywords:
+            if client_id and manager:
+                await manager.send_log(client_id, {
+                    "timestamp": datetime.now().isoformat(),
+                    "level": "INFO",
+                    "category": "RESULT",
+                    "message": "No trending program found",
+                    "data": {"reason": "No matching programs in database"}
+                })
             # Simulate no program found (but no error)
             return None, None
             

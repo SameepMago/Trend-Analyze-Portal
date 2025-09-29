@@ -3,6 +3,7 @@ import Header from './components/Header';
 import TrendInput from './components/TrendInput';
 import TrendResults from './components/TrendResults';
 import MovieModal from './components/MovieModal';
+import LogViewer from './components/LogViewer';
 import ErrorBoundary from './components/ErrorBoundary';
 import { tmdbAPI, agentAPI } from './services/api';
 import './App.css';
@@ -17,6 +18,9 @@ function App() {
   const [movieDetails, setMovieDetails] = useState(null);
   const [error, setError] = useState(null);
   const [loadingMovieId, setLoadingMovieId] = useState(null);
+  const [showLogs, setShowLogs] = useState(false);
+  const [logClientId, setLogClientId] = useState(null);
+  const [logsByClientId, setLogsByClientId] = useState({});
 
   // Mock data for testing
   const mockTrendData = {
@@ -98,15 +102,55 @@ function App() {
 
   const processSingleTrend = async (keywords, index, newTrendResults) => {
     try {
-      // Call real agent API
-      console.log('Calling agent API for:', keywords);
-      const agentResult = await agentAPI.analyzeTrends([keywords]);
+      // Generate client_id for this trend
+      const clientId = `trend-${index}-${Date.now()}`;
+
+      // Store clientId on this trend and initialize logs container
+      newTrendResults[index] = {
+        ...(newTrendResults[index] || {}),
+        clientId,
+        logs: [],
+      };
+      setTrendResults([...newTrendResults]);
+
+      // Open background websocket to collect logs while agent runs
+      try {
+        const ws = new WebSocket(`ws://localhost:8000/ws/logs/${clientId}`);
+        ws.onmessage = (event) => {
+          try {
+            const log = JSON.parse(event.data);
+            setLogsByClientId(prev => {
+              const current = prev[clientId] || [];
+              return { ...prev, [clientId]: [...current, log] };
+            });
+            // Also keep logs on trend item for easy access
+            const updated = [...newTrendResults];
+            const trend = { ...(updated[index] || {}) };
+            trend.logs = [...(trend.logs || []), log];
+            updated[index] = trend;
+            setTrendResults(updated);
+          } catch (e) {
+            console.error('Failed to parse log message', e);
+          }
+        };
+        ws.onclose = () => {
+          // Leave collected logs in state; nothing to do
+        };
+      } catch (e) {
+        console.error('Failed to open WS for logs', e);
+      }
+
+      // Call real agent API with client_id
+      console.log('Calling agent API for:', keywords, 'with client_id:', clientId);
+      const agentResult = await agentAPI.analyzeTrends([keywords], clientId);
 
       const result = {
         keywords: keywords,
         result: agentResult,
         processedAt: new Date().toLocaleTimeString(),
-        error: null
+        error: null,
+        clientId,
+        logs: logsByClientId[clientId] || newTrendResults[index]?.logs || [],
       };
       newTrendResults[index] = result;
       setTrendResults([...newTrendResults]);
@@ -257,6 +301,11 @@ function App() {
     }
   };
 
+  const handleOpenLogs = (clientId) => {
+    setLogClientId(clientId);
+    setShowLogs(true);
+  };
+
   return (
     <ErrorBoundary>
       <div className="app">
@@ -275,19 +324,27 @@ function App() {
               trendResults={trendResults}
               processingStatus={processingStatus}
               onMovieClick={handleMovieClick}
+              onOpenLogs={handleOpenLogs}
               error={error}
               loadingMovieId={loadingMovieId}
             />
       </div>
         </main>
 
-        <MovieModal
+        <MovieModal 
           selectedMovie={selectedMovie}
           movieDetails={movieDetails}
           onClose={() => {
             setSelectedMovie(null);
             setMovieDetails(null);
           }}
+        />
+        
+        <LogViewer 
+          isOpen={showLogs}
+          onClose={() => setShowLogs(false)}
+          clientId={logClientId}
+          initialLogs={(logsByClientId && logClientId && logsByClientId[logClientId]) ? logsByClientId[logClientId] : []}
         />
       </div>
     </ErrorBoundary>

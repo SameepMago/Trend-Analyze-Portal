@@ -16,11 +16,12 @@ const api = axios.create({
 // Agent API calls
 export const agentAPI = {
   // Analyze trending keywords using the agent
-  analyzeTrends: async (keywords) => {
+  analyzeTrends: async (keywords, clientId = null) => {
     try {
+      const params = clientId ? { client_id: clientId } : {};
       const response = await api.post('/api/analyze-trends', {
         keywords: keywords
-      });
+      }, { params });
       return response.data;
     } catch (error) {
       console.error('Error analyzing trends:', error);

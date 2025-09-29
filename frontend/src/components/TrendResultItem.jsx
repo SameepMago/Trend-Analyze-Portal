@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, TrendingDown, Search, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { TrendingUp, TrendingDown, Search, Loader2, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
 import ProgramCard from './ProgramCard';
 
 const TrendResultItem = ({ 
@@ -7,6 +7,7 @@ const TrendResultItem = ({
   index, 
   processingStatus, 
   onMovieClick,
+  onOpenLogs,
   loadingMovieId 
 }) => {
   const [isKeywordsExpanded, setIsKeywordsExpanded] = useState(false);
@@ -93,6 +94,16 @@ const TrendResultItem = ({
             Processed at {trendResult.processedAt}
           </div>
         )}
+        <div className="trend-actions">
+          <button 
+            className="log-viewer-btn"
+            onClick={() => onOpenLogs(trendResult?.clientId || `trend-${index}`)}
+            title="View Live Logs"
+          >
+            <Terminal size={16} />
+            Live Logs
+          </button>
+        </div>
       </div>
 
       {processingStatus[index] === 'completed' && trendResult.result && (
