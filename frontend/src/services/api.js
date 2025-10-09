@@ -38,6 +38,19 @@ export const agentAPI = {
       console.error('Health check failed:', error);
       throw new Error('Backend is not available');
     }
+  },
+
+  // Fetch Google Trends
+  fetchGoogleTrends: async (topN = 10) => {
+    try {
+      const response = await api.post('/api/fetch-google-trends', {
+        top_n: topN
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching Google Trends:', error);
+      throw new Error(error.response?.data?.detail || 'Failed to fetch Google Trends');
+    }
   }
 };
 

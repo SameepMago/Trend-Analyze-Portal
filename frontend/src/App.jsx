@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import Header from './components/Header';
-import TrendInput from './components/TrendInput';
-import TrendResults from './components/TrendResults';
+import TrendInputTabs from './components/TrendInputTabs';
 import MovieModal from './components/MovieModal';
 import LogViewer from './components/LogViewer';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -10,13 +9,8 @@ import './App.css';
 
 // Main App Component
 function App() {
-  const [trendingKeywords, setTrendingKeywords] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [trendResults, setTrendResults] = useState([]);
-  const [processingStatus, setProcessingStatus] = useState([]);
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [movieDetails, setMovieDetails] = useState(null);
-  const [error, setError] = useState(null);
   const [loadingMovieId, setLoadingMovieId] = useState(null);
   const [showLogs, setShowLogs] = useState(false);
   const [logClientId, setLogClientId] = useState(null);
@@ -69,38 +63,41 @@ function App() {
     }
   };
 
-  // Handle form submission
-  const handleSubmit = async () => {
-    if (!trendingKeywords.trim()) {
+  // Unified analyze function for all tabs
+  const handleAnalyze = async (keywords, setIsLoading, setTrendResults, setProcessingStatus, setError) => {
+    if (!keywords.trim()) {
       setError('Please enter some trending keywords.');
       return;
     }
+    
     setError(null);
     setIsLoading(true);
     
-    const keywordLines = trendingKeywords.split('\n').filter(line => line.trim() !== '');
-    setProcessingStatus(keywordLines.map(() => 'processing'));
+    const keywordLines = keywords.split('\n').filter(line => line.trim() !== '');
+    const initialStatus = keywordLines.map(() => 'processing');
     
-    // Initialize trendResults with placeholder objects containing keywords
-    const initialTrendResults = keywordLines.map(keywords => ({
-      keywords: keywords,
+    const initialTrendResults = keywordLines.map(kw => ({
+      keywords: kw,
       result: null,
       processedAt: null,
       error: null
     }));
+    
     setTrendResults(initialTrendResults);
+    setProcessingStatus(initialStatus);
     
     const newTrendResults = [...initialTrendResults];
+    const newStatus = [...initialStatus];
 
     for (let i = 0; i < keywordLines.length; i++) {
       const line = keywordLines[i];
-      await processSingleTrend(line, i, newTrendResults);
+      await processSingleTrend(line, i, newTrendResults, newStatus, setTrendResults, setProcessingStatus);
     }
 
     setIsLoading(false);
   };
 
-  const processSingleTrend = async (keywords, index, newTrendResults) => {
+  const processSingleTrend = async (keywords, index, newTrendResults, newStatus, setTrendResults, setProcessingStatus) => {
     try {
       // Generate client_id for this trend
       const clientId = `trend-${index}-${Date.now()}`;
@@ -153,13 +150,10 @@ function App() {
         logs: logsByClientId[clientId] || newTrendResults[index]?.logs || [],
       };
       newTrendResults[index] = result;
+      newStatus[index] = 'completed';
+      
       setTrendResults([...newTrendResults]);
-
-      setProcessingStatus(prev => {
-        const newStatus = [...prev];
-        newStatus[index] = 'completed';
-        return newStatus;
-      });
+      setProcessingStatus([...newStatus]);
 
     } catch (err) {
       console.error('Error processing trend:', err);
@@ -169,13 +163,10 @@ function App() {
         processedAt: new Date().toLocaleTimeString(),
         error: err.message || 'Failed to process trend'
       };
+      newStatus[index] = 'error';
+      
       setTrendResults([...newTrendResults]);
-
-      setProcessingStatus(prev => {
-        const newStatus = [...prev];
-        newStatus[index] = 'error';
-        return newStatus;
-      });
+      setProcessingStatus([...newStatus]);
     }
   };
 
@@ -313,22 +304,13 @@ function App() {
 
         <main className="app-main">
           <div className="container">
-            <TrendInput
-              trendingKeywords={trendingKeywords}
-              setTrendingKeywords={setTrendingKeywords}
-              isLoading={isLoading}
-              onSubmit={handleSubmit}
-            />
-
-            <TrendResults
-              trendResults={trendResults}
-              processingStatus={processingStatus}
+            <TrendInputTabs
               onMovieClick={handleMovieClick}
               onOpenLogs={handleOpenLogs}
-              error={error}
               loadingMovieId={loadingMovieId}
+              onAnalyze={handleAnalyze}
             />
-      </div>
+          </div>
         </main>
 
         <MovieModal 

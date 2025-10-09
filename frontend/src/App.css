@@ -1728,3 +1728,245 @@ html, body {
 .log-viewer-btn:active {
   transform: translateY(0);
 }
+
+/* Input Tabs Styles */
+.input-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid #e1e5e9;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s ease;
+  position: relative;
+  bottom: -2px;
+}
+
+.tab-btn:hover:not(:disabled) {
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.05);
+}
+
+.tab-btn.active {
+  color: #667eea;
+  border-bottom-color: #667eea;
+  font-weight: 600;
+}
+
+.tab-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tab-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.tab-content {
+  margin-top: 1.5rem;
+}
+
+.tab-page {
+  width: 100%;
+}
+
+/* Google Trends Fetch Styles */
+.google-trends-fetch {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 2px solid #e1e5e9;
+}
+
+.google-trends-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  color: #667eea;
+}
+
+.google-trends-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.google-trends-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.google-trends-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.google-trends-description {
+  color: #6b7280;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.google-trends-input-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.google-trends-input-group label {
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.google-trends-number-input {
+  padding: 0.75rem;
+  border: 2px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+  width: 120px;
+  transition: border-color 0.2s ease;
+}
+
+.google-trends-number-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.google-trends-number-input:disabled {
+  background: #f3f4f6;
+  cursor: not-allowed;
+}
+
+.google-trends-btn {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+.google-trends-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.4);
+}
+
+.google-trends-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.google-trends-btn:disabled {
+  background: #d1d5db;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.google-trends-error {
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  border-left: 4px solid #ef4444;
+}
+
+.btn-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.btn-icon.spinning {
+  animation: spin 1s linear infinite;
+}
+
+.fetched-trends-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid #e1e5e9;
+}
+
+.fetched-trends-preview label {
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.trends-preview-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #10b981;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: monospace;
+  background: #f0fdf4;
+  color: #166534;
+  resize: vertical;
+}
+
+.preview-help {
+  color: #059669;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .input-tabs {
+    flex-direction: column;
+    gap: 0;
+  }
+  
+  .tab-btn {
+    border-bottom: none;
+    border-left: 3px solid transparent;
+    bottom: 0;
+    padding: 0.75rem 1rem;
+  }
+  
+  .tab-btn.active {
+    border-bottom-color: transparent;
+    border-left-color: #667eea;
+    background: rgba(102, 126, 234, 0.05);
+  }
+  
+  .google-trends-input-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .google-trends-number-input {
+    width: 100%;
+  }
+  
+  .google-trends-btn {
+    width: 100%;
+  }
+}
