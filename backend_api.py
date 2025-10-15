@@ -709,9 +709,12 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
                         print(f"❌ Error in API calls for trend {trend.get('id', 'unknown')}: {e}")
             
             # Format response according to frontend expectations
+            # Check if the agent determined the program is trending
+            is_trending = selected_program.get('is_trending', True)  # Default to True if not specified
+            
             response_data = {
                 "success": True,
-                "program_is_trending": True,  # Agent only returns programs that are trending
+                "program_is_trending": is_trending,  # Use agent's determination
                 "program": {
                     "title": selected_program.get('title', ''),
                     "program_type": selected_program.get('program_type', 'movie'),
@@ -723,7 +726,7 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
                     "topic_id": topic_id,  # Include topic_id in response
                     "poster_path": None  # Will be filled by TMDB API in frontend
                 },
-                "message": "Successfully identified trending program"
+                "message": f"Successfully identified program - {'trending' if is_trending else 'not trending'}"
             }
             
             # Send completion log and disconnect WebSocket
