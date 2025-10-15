@@ -92,7 +92,7 @@ class TrendAgent:
             }
         }
     
-    async def run(self, trend_list: List[str], client_id: str = None, manager = None) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    async def run(self, trend_list: List[str], client_id: str = None, manager = None) -> Tuple[Optional[Dict[str, Any]], Optional[str], bool]:
         """
         Mock agent run method that returns different response types based on keywords
         
@@ -102,7 +102,7 @@ class TrendAgent:
             manager: WebSocket connection manager
             
         Returns:
-            Tuple of (selected_program, error_message)
+            Tuple of (selected_program, error_message, successfully_completed)
         """
         # Send log about starting analysis
         if client_id and manager:
@@ -146,7 +146,7 @@ class TrendAgent:
                     "message": "Found trending program: Dune: Part Two",
                     "data": {"program": "Dune: Part Two", "reason": "Recent blockbuster sequel"}
                 })
-            return self.mock_data["dune"], None
+            return self.mock_data["dune"], None, True
             
         elif "oppenheimer" in combined_keywords:
             if client_id and manager:
@@ -157,7 +157,7 @@ class TrendAgent:
                     "message": "Found trending program: Oppenheimer",
                     "data": {"program": "Oppenheimer", "reason": "Oscar-winning biopic"}
                 })
-            return self.mock_data["oppenheimer"], None
+            return self.mock_data["oppenheimer"], None, True
             
         elif "wednesday" in combined_keywords:
             if client_id and manager:
@@ -168,7 +168,7 @@ class TrendAgent:
                     "message": "Found trending program: Wednesday",
                     "data": {"program": "Wednesday", "reason": "Netflix viral hit series"}
                 })
-            return self.mock_data["wednesday"], None
+            return self.mock_data["wednesday"], None, True
             
         elif "game of thrones" in combined_keywords or "got" in combined_keywords:
             if client_id and manager:
@@ -179,7 +179,7 @@ class TrendAgent:
                     "message": "Found program but not trending: Game of Thrones",
                     "data": {"program": "Game of Thrones", "reason": "Classic series, ended in 2019"}
                 })
-            return self.mock_data["game of thrones"], None
+            return self.mock_data["game of thrones"], None, True
             
         elif "breaking bad" in combined_keywords:
             if client_id and manager:
@@ -190,7 +190,7 @@ class TrendAgent:
                     "message": "Found program but not trending: Breaking Bad",
                     "data": {"program": "Breaking Bad", "reason": "Highly acclaimed but ended in 2013"}
                 })
-            return self.mock_data["breaking bad"], None
+            return self.mock_data["breaking bad"], None, True
             
         elif "error" in combined_keywords:
             if client_id and manager:
@@ -201,7 +201,7 @@ class TrendAgent:
                     "message": "Agent analysis failed: Connection error",
                     "data": {"error": "Unable to connect to search service"}
                 })
-            return None, self.mock_data["error"]["error"]
+            return None, self.mock_data["error"]["error"], False
             
         elif "timeout" in combined_keywords:
             if client_id and manager:
@@ -212,7 +212,7 @@ class TrendAgent:
                     "message": "Agent analysis failed: Timeout error",
                     "data": {"error": "Request timeout while searching"}
                 })
-            return None, self.mock_data["timeout"]["error"]
+            return None, self.mock_data["timeout"]["error"], False
             
         elif "invalid" in combined_keywords:
             if client_id and manager:
@@ -223,7 +223,7 @@ class TrendAgent:
                     "message": "Agent analysis failed: Invalid input",
                     "data": {"error": "Invalid input format provided"}
                 })
-            return None, self.mock_data["invalid"]["error"]
+            return None, self.mock_data["invalid"]["error"], False
             
         elif "random" in combined_keywords or "gibberish" in combined_keywords:
             if client_id and manager:
@@ -235,7 +235,19 @@ class TrendAgent:
                     "data": {"reason": "No matching programs in database"}
                 })
             # Simulate no program found (but no error)
-            return None, None
+            return None, None, True
+            
+        elif "info" in combined_keywords or "message" in combined_keywords:
+            if client_id and manager:
+                await manager.send_log(client_id, {
+                    "timestamp": datetime.now().isoformat(),
+                    "level": "INFO",
+                    "category": "RESULT",
+                    "message": "Analysis completed successfully with info",
+                    "data": {"reason": "Agent completed but found no trending programs"}
+                })
+            # Case 3: Agent completed successfully with info message
+            return None, "No trending programs found for these keywords, but analysis completed successfully", True
             
         else:
             # Default: randomly return a trending program or no result
@@ -243,13 +255,13 @@ class TrendAgent:
             if rand < 0.4:  # 40% chance of trending program
                 trending_programs = ["dune", "oppenheimer", "wednesday"]
                 selected = random.choice(trending_programs)
-                return self.mock_data[selected], None
+                return self.mock_data[selected], None, True
             elif rand < 0.7:  # 30% chance of not trending program
                 not_trending_programs = ["game of thrones", "breaking bad"]
                 selected = random.choice(not_trending_programs)
-                return self.mock_data[selected], None
+                return self.mock_data[selected], None, True
             else:  # 30% chance of no program found
-                return None, None
+                return None, None, True
 
 # Test the mock agent
 if __name__ == "__main__":
@@ -266,24 +278,29 @@ if __name__ == "__main__":
             ["timeout", "test"],
             ["invalid", "test"],
             ["random", "gibberish"],
+            ["info", "message", "test"],
             ["unknown", "keywords"]
         ]
         
-        print("🧪 Testing Mock Agent...")
-        print("=" * 50)
+        print("🧪 Testing Mock Agent (3-Field Format)...")
+        print("=" * 60)
         
         for i, keywords in enumerate(test_cases, 1):
             print(f"\n{i}. Testing: {keywords}")
-            program, error = await agent.run(keywords)
+            program, error, successfully_completed = await agent.run(keywords)
             
-            if error:
-                print(f"   ❌ Error: {error}")
-            elif program:
-                print(f"   ✅ Program: {program['title']} ({program['program_type']})")
+            print(f"   📊 Successfully Completed: {successfully_completed}")
+            
+            if not successfully_completed and error:
+                print(f"   🔴 Agent Error: {error}")
+            elif successfully_completed and program:
+                print(f"   🟢 Program Found: {program['title']} ({program['program_type']})")
                 print(f"   📅 Year: {program['release_year']}")
                 print(f"   🎭 Cast: {', '.join(program['cast'][:3])}...")
+            elif successfully_completed and error and not program:
+                print(f"   ⚪ Info Message: {error}")
             else:
-                print(f"   🔍 No program found")
+                print(f"   ⚪ No program found (completed successfully)")
     
     # Run the test
     asyncio.run(test_mock_agent())
