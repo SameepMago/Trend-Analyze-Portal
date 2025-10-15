@@ -741,38 +741,6 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
             
             return TrendResponse(**response_data)
         
-        # Insert trend to topic regardless of agent success/failure
-        if request.trend_data:
-            for trend in request.trend_data:
-                try:
-                    # Determine topic and category based on agent result
-                    if selected_program and not error_message:
-                        topic = selected_program.get('title', '')
-                        topic_category = selected_program.get('program_type', 'movie')
-                        llm_output = selected_program.get('explanation_of_trend', '')
-                    else:
-                        # Fallback when agent fails or no program found
-                        topic = ', '.join(request.keywords[:3])  # Use first 3 keywords
-                        topic_category = 'unknown'
-                        llm_output = error_message or 'No program identified'
-                    
-                    # Insert trend to topic
-                    insert_success = insert_trend_to_topic(
-                        trend_id=trend.get('id', ''),
-                        topic=topic,
-                        topic_category=topic_category,
-                        llm_output=llm_output,
-                        date=trend.get('trend_started')
-                    )
-                    
-                    if insert_success:
-                        print(f"✅ Successfully inserted trend {trend.get('id', 'unknown')} to topic")
-                    else:
-                        print(f"⚠️ Failed to insert trend {trend.get('id', 'unknown')} to topic")
-                        
-                except Exception as e:
-                    print(f"❌ Error inserting trend to topic for trend {trend.get('id', 'unknown')}: {e}")
-        
         # Handle agent error (only when not successfully completed)
         elif not successfully_completed:
             print(f"Agent failed with error: {error_message}")
@@ -819,6 +787,38 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
                 program=None,
                 message=error_message or "Agent completed successfully but no program was identified"
             )
+        
+        # Insert trend to topic regardless of agent success/failure
+        if request.trend_data:
+            for trend in request.trend_data:
+                try:
+                    # Determine topic and category based on agent result
+                    if selected_program and successfully_completed:
+                        topic = selected_program.get('title', '')
+                        topic_category = selected_program.get('program_type', 'movie')
+                        llm_output = selected_program.get('explanation_of_trend', '')
+                    else:
+                        # Fallback when agent fails or no program found
+                        topic = ', '.join(request.keywords[:3])  # Use first 3 keywords
+                        topic_category = 'unknown'
+                        llm_output = error_message or 'No program identified'
+                    
+                    # Insert trend to topic
+                    insert_success = insert_trend_to_topic(
+                        trend_id=trend.get('id', ''),
+                        topic=topic,
+                        topic_category=topic_category,
+                        llm_output=llm_output,
+                        date=trend.get('trend_started')
+                    )
+                    
+                    if insert_success:
+                        print(f"✅ Successfully inserted trend {trend.get('id', 'unknown')} to topic")
+                    else:
+                        print(f"⚠️ Failed to insert trend {trend.get('id', 'unknown')} to topic")
+                        
+                except Exception as e:
+                    print(f"❌ Error inserting trend to topic for trend {trend.get('id', 'unknown')}: {e}")
     
     except HTTPException:
         raise
