@@ -10,6 +10,7 @@ const FetchGoogleTrendsTab = ({
   onAnalyze
 }) => {
   const [googleTrends, setGoogleTrends] = useState('');
+  const [trendData, setTrendData] = useState([]);
   const [googleTrendsCount, setGoogleTrendsCount] = useState(10);
   const [isFetchingTrends, setIsFetchingTrends] = useState(false);
   const [fetchError, setFetchError] = useState(null);
@@ -26,6 +27,7 @@ const FetchGoogleTrendsTab = ({
 
     // Reset UI state when fetching new trends
     setGoogleTrends('');
+    setTrendData([]);
     setTrendResults([]);
     setProcessingStatus([]);
     setError(null);
@@ -46,7 +48,16 @@ const FetchGoogleTrendsTab = ({
       const data = await response.json();
 
       if (data.success && data.trends) {
-        const trendsText = data.trends.join('\n');
+        // Store full trend data objects
+        setTrendData(data.trends);
+        
+        // Extract trend breakdown for display
+        const trendsText = data.trends.map(trend => {
+          const breakdown = trend.trend_breakdown || [];
+          const breakdownText = Array.isArray(breakdown) ? breakdown.join(', ') : breakdown;
+          return breakdownText || trend.trends || 'Unknown trend';
+        }).join('\n');
+        
         setGoogleTrends(trendsText);
       } else {
         setFetchError(data.error || 'Failed to fetch Google Trends');
@@ -66,7 +77,7 @@ const FetchGoogleTrendsTab = ({
       return;
     }
     setError(null);
-    onAnalyze(googleTrends, setIsLoading, setTrendResults, setProcessingStatus, setError);
+    onAnalyze(googleTrends, setIsLoading, setTrendResults, setProcessingStatus, setError, trendData);
   };
 
   if (!isActive) return null;

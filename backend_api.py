@@ -25,24 +25,162 @@ from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import requests
 
 # Database configuration
 DB_CONFIG = {
     "host": "localhost",
-    "database": "postgres", 
+    "database": "postgres",
     "user": "postgres",
     "password": "Sameep123@",
-    "port": 5432
+    "port": 5432,
+    "schema": "bingeplus_internal"
 }
 
 def get_db_connection():
     """Get PostgreSQL database connection"""
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
+        # Create connection config without schema (schema is not a connection parameter)
+        conn_config = {k: v for k, v in DB_CONFIG.items() if k != 'schema'}
+        conn = psycopg2.connect(**conn_config)
         return conn
     except Exception as e:
         print(f"❌ Database connection error: {e}")
         return None
+
+def insert_trend_data(conn, cursor, trend_name, category, search_volume, started, ended, trends_breakdown, explore_links):
+    """Insert or update trend data in the database"""
+    query = f"""
+    INSERT INTO {DB_CONFIG['schema']}.google_trends 
+    (trends, category, search_volume, trend_started, trend_ended, trend_breakdown, explore_link)
+    VALUES (%s, %s, %s, %s, %s, %s, %s)
+    ON CONFLICT (trends, category) DO UPDATE SET
+        trend_ended = EXCLUDED.trend_ended,
+        search_volume = EXCLUDED.search_volume,
+        trend_started = EXCLUDED.trend_started,
+        trend_breakdown = EXCLUDED.trend_breakdown,
+        explore_link = EXCLUDED.explore_link
+    """
+    cursor.execute(query, (trend_name, category, search_volume, started, ended, trends_breakdown, explore_links))
+    conn.commit()
+
+
+def categories_clause(trend_categories):
+    """Format categories for SQL IN clause"""
+    return ",".join([f"'{cat}'" for cat in trend_categories])
+
+def get_new_trends(trend_categories, count):
+    """Get new trends from database that haven't been processed yet"""
+    conn = get_db_connection()
+    if not conn:
+        return []
+    
+    try:
+        categories = categories_clause(trend_categories)
+        query = f"""
+        select gt.* from {DB_CONFIG['schema']}.google_trends gt
+        left join {DB_CONFIG['schema']}.trends_to_topics tt on gt.id = tt.google_trend_id
+        where tt.id is null and gt.category in ({categories})
+        ORDER by trend_ended desc,gt.trend_started desc limit {count}
+        """
+        
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query)
+            return cur.fetchall()
+    
+    except Exception as e:
+        print(f"❌ Error getting new trends: {e}")
+        return []
+    finally:
+        conn.close()
+
+# API functions for ingest and upsert
+def call_ingest_topic_api(name, topic_type, source_id, source_name, source_id_type, **kwargs):
+    """Call the ingest topic API endpoint"""
+    
+    # API endpoint URL - adjust this to match your actual API endpoint
+    api_url = "http://localhost:8000/merger/ingest_topic"  # Update this URL as needed
+    
+    payload = {
+        "name": name,
+        "topic_type": topic_type,
+        "source_id": source_id,
+        "source_name": source_name,
+        "source_id_type": source_id_type
+    }
+    
+    # Add optional fields if provided
+    if 'umd_program_id' in kwargs:
+        payload['umd_program_id'] = kwargs['umd_program_id']
+    if 'description' in kwargs:
+        payload['description'] = kwargs['description']
+    if 'date' in kwargs:
+        payload['date'] = kwargs['date']
+    
+    try:
+        response = requests.post(api_url, json=payload)
+        if response.status_code == 200:
+            result = response.json()
+            return result.get('topic_id')
+        else:
+            print(f"❌ Ingest topic API error: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        print(f"❌ Error calling ingest topic API: {e}")
+        return None
+
+def call_upsert_trend_api(topic_id, source, trend_info, source_detail=None):
+    """Call the upsert trend API endpoint"""
+    
+    # API endpoint URL - adjust this to match your actual API endpoint
+    api_url = "http://localhost:8000/merger/upsert_trend"  # Update this URL as needed
+    
+    payload = {
+        "topic_id": topic_id,
+        "source": source,
+        "trend_info": trend_info
+    }
+    
+    if source_detail:
+        payload['source_detail'] = source_detail
+    
+    try:
+        response = requests.post(api_url, json=payload)
+        if response.status_code == 200:
+            result = response.json()
+            return result.get('success', False)
+        else:
+            print(f"❌ Upsert trend API error: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        print(f"❌ Error calling upsert trend API: {e}")
+        return False
+
+def insert_trend_to_topic(trend_id, topic, topic_category, llm_output, date):
+    """Insert trend to topic in database"""
+    
+    conn = get_db_connection()
+    if not conn:
+        return False
+    
+    try:
+        insert_query = f"""
+        INSERT INTO {DB_CONFIG['schema']}.trends_to_topics 
+        (google_trend_id, topic, topic_category, llm_output,date)
+        VALUES (%s, %s, %s, %s, %s);
+        """
+        
+        with conn.cursor() as cur:
+            cur.execute(insert_query, (trend_id, topic, topic_category, llm_output, date))
+            conn.commit()
+            return True
+    
+    except Exception as e:
+        print(f"❌ Error inserting trend to topic: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
 
 def save_csv_to_database(csv_path: str) -> bool:
     """Save CSV data to PostgreSQL database"""
@@ -57,11 +195,7 @@ def save_csv_to_database(csv_path: str) -> bool:
             print("❌ Failed to connect to database")
             return False
             
-        cursor = conn.cursor()
-        
-        # Clear existing data (optional - you might want to keep historical data)
-        cursor.execute("DELETE FROM bingeplus_internal.google_trends")
-        print("🗑️ Cleared existing data from google_trends table")
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
         
         # Insert new data with individual transaction handling
         inserted_count = 0
@@ -101,25 +235,8 @@ def save_csv_to_database(csv_path: str) -> bool:
                 if trend_breakdown and trend_breakdown != 'nan':
                     trend_breakdown_array = [item.strip() for item in trend_breakdown.split(',') if item.strip()]
                 
-                # Insert into database with individual transaction
-                insert_query = """
-                INSERT INTO bingeplus_internal.google_trends 
-                (trends, category, search_volume, trend_started, trend_ended, trend_breakdown, explore_link)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """
-                
-                cursor.execute(insert_query, (
-                    trends,
-                    'Google Trends',  # Default category
-                    search_volume,
-                    trend_started,
-                    trend_ended,
-                    trend_breakdown_array,
-                    explore_link if explore_link != 'nan' else None
-                ))
-                
-                # Commit each individual insert
-                conn.commit()
+                # Insert using the new function
+                insert_trend_data(conn, cursor, trends, 'Entertainment', search_volume, trend_started, trend_ended, trend_breakdown_array, explore_link if explore_link != 'nan' else None)
                 inserted_count += 1
                 
             except Exception as e:
@@ -349,32 +466,28 @@ def download_google_trends_csv() -> Optional[str]:
     finally:
         driver.quit()
 
-def parse_google_trends_csv(csv_path: str, top_n: int = 10) -> List[str]:
-    """Parse Google Trends CSV and return top N trending keywords."""
+def parse_google_trends_from_db(top_n: int = 10) -> List[dict]:
+    """Parse Google Trends from database and return full trend data."""
     try:
-        df = pd.read_csv(csv_path)
-        print(f"📊 CSV columns: {df.columns.tolist()}")
+        # Define trend categories to look for
+        trend_categories = ['Entertainment']
         
-        # Check for required columns
-        if 'Started' not in df.columns or 'Trend breakdown' not in df.columns:
-            print("⚠️ Missing required columns, trying fallback")
-            # Just take top N rows from first column
-            trends = df.iloc[:top_n, 0].tolist()
-        else:
-            # Sort by most recent trends (latest Started time)
-            df['Started'] = pd.to_datetime(df['Started'], errors='coerce')
-            df = df.sort_values('Started', ascending=False)
-            
-            # Get the "Trend breakdown" column for top N
-            trends = df['Trend breakdown'].head(top_n).tolist()
+        print(f"Fetching top {top_n} trends from database...")
+        print(f"Looking for categories: {trend_categories}")
         
-        # Clean trends
-        trends = [str(t).strip() for t in trends if pd.notna(t) and str(t).strip()]
-        print(f"✅ Extracted {len(trends)} trends: {trends[:5]}...")
-        return trends
-    
+        # Get new trends from database
+        trend_results = get_new_trends(trend_categories, top_n)
+        
+        if not trend_results:
+            print("No new trends found in database")
+            return []
+        
+        print(f"Found {len(trend_results)} trends from database")
+        
+        # Return full trend data instead of just trend breakdown
+        return trend_results[:top_n]
     except Exception as e:
-        print(f"❌ Error parsing CSV: {e}")
+        print(f"❌ Error parsing trends from database: {e}")
         traceback.print_exc()
         return []
 
@@ -395,6 +508,7 @@ app.add_middleware(
 
 class TrendRequest(BaseModel):
     keywords: List[str]
+    trend_data: Optional[List[Dict[str, Any]]] = None
 
 class TrendResponse(BaseModel):
     success: bool
@@ -419,7 +533,7 @@ class GoogleTrendsRequest(BaseModel):
 
 class GoogleTrendsResponse(BaseModel):
     success: bool
-    trends: Optional[List[str]] = None
+    trends: Optional[List[Dict[str, Any]]] = None
     error: Optional[str] = None
 
 @app.get("/", response_model=HealthResponse)
@@ -468,16 +582,16 @@ async def fetch_google_trends(request: GoogleTrendsRequest):
         if not db_save_success:
             print("⚠️ Warning: Failed to save data to database, but continuing with parsing")
         
-        # Parse CSV and get top N trends
-        trends = parse_google_trends_csv(csv_path, request.top_n)
+        # Parse trends from database and get full trend data
+        trends = parse_google_trends_from_db(request.top_n)
         
         if not trends:
             raise HTTPException(
                 status_code=500,
-                detail="Failed to parse trends from CSV"
+                detail="Failed to parse trends from database"
             )
         
-        print(f"✅ Successfully fetched {len(trends)} trends and saved to database")
+        print(f"✅ Successfully fetched {len(trends)} trends from database")
         
         return GoogleTrendsResponse(
             success=True,
@@ -550,6 +664,50 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
         if selected_program and not error_message:
             print(f"Agent found program: {selected_program.get('title', 'Unknown')}")
             
+            # Store topic_id for response
+            topic_id = None
+            
+            # Call ingest topic API when agent is successful
+            if selected_program and request.trend_data:
+                for trend in request.trend_data:
+                    try:
+                        # Prepare ingest topic API call
+                        topic_id = call_ingest_topic_api(
+                            name=selected_program.get('title', ''),
+                            topic_type=selected_program.get('program_type', 'movie'),
+                            source_id=trend.get('id', ''),
+                            source_name=f"{DB_CONFIG['schema']}.google_trends",
+                            source_id_type='id',
+                            description=selected_program.get('descriptions', [''])[0] if selected_program.get('descriptions') else '',
+                            date=trend.get('trend_started')
+                        )
+                        
+                        if topic_id:
+                            # Call upsert trend API after successful ingest
+                            trend_info = {
+                                'search_volume': trend.get('search_volume', 0),
+                                'trend_breakdown': trend.get('trend_breakdown', []),
+                                'trend_started': trend.get('trend_started'),
+                                'trend_ended': trend.get('trend_ended')
+                            }
+                            
+                            upsert_success = call_upsert_trend_api(
+                                topic_id=topic_id,
+                                source='google',
+                                trend_info=trend_info,
+                                source_detail=trend.get('explore_link')
+                            )
+                            
+                            if upsert_success:
+                                print(f"✅ Successfully upserted trend for topic {topic_id}")
+                            else:
+                                print(f"⚠️ Failed to upsert trend for topic {topic_id}")
+                        else:
+                            print(f"⚠️ Failed to ingest topic for trend {trend.get('id', 'unknown')}")
+                            
+                    except Exception as e:
+                        print(f"❌ Error in API calls for trend {trend.get('id', 'unknown')}: {e}")
+            
             # Format response according to frontend expectations
             response_data = {
                 "success": True,
@@ -562,6 +720,7 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
                     "cast": selected_program.get('cast', []),
                     "explanation_of_trend": selected_program.get('explanation_of_trend', ''),
                     "imdb_id": selected_program.get('imdb_id', ''),
+                    "topic_id": topic_id,  # Include topic_id in response
                     "poster_path": None  # Will be filled by TMDB API in frontend
                 },
                 "message": "Successfully identified trending program"
@@ -581,8 +740,40 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
             
             return TrendResponse(**response_data)
         
+        # Insert trend to topic regardless of agent success/failure
+        if request.trend_data:
+            for trend in request.trend_data:
+                try:
+                    # Determine topic and category based on agent result
+                    if selected_program and not error_message:
+                        topic = selected_program.get('title', '')
+                        topic_category = selected_program.get('program_type', 'movie')
+                        llm_output = selected_program.get('explanation_of_trend', '')
+                    else:
+                        # Fallback when agent fails or no program found
+                        topic = ', '.join(request.keywords[:3])  # Use first 3 keywords
+                        topic_category = 'unknown'
+                        llm_output = error_message or 'No program identified'
+                    
+                    # Insert trend to topic
+                    insert_success = insert_trend_to_topic(
+                        trend_id=trend.get('id', ''),
+                        topic=topic,
+                        topic_category=topic_category,
+                        llm_output=llm_output,
+                        date=trend.get('trend_started')
+                    )
+                    
+                    if insert_success:
+                        print(f"✅ Successfully inserted trend {trend.get('id', 'unknown')} to topic")
+                    else:
+                        print(f"⚠️ Failed to insert trend {trend.get('id', 'unknown')} to topic")
+                        
+                except Exception as e:
+                    print(f"❌ Error inserting trend to topic for trend {trend.get('id', 'unknown')}: {e}")
+        
         # Handle agent error
-        elif error_message:
+        if error_message:
             print(f"Agent completed with an error: {error_message}")
             
             # Send error log and disconnect WebSocket

@@ -16,12 +16,19 @@ const api = axios.create({
 // Agent API calls
 export const agentAPI = {
   // Analyze trending keywords using the agent
-  analyzeTrends: async (keywords, clientId = null) => {
+  analyzeTrends: async (keywords, clientId = null, trendData = null) => {
     try {
       const params = clientId ? { client_id: clientId } : {};
-      const response = await api.post('/api/analyze-trends', {
+      const payload = {
         keywords: keywords
-      }, { params });
+      };
+      
+      // Add trend_data if provided
+      if (trendData && Array.isArray(trendData)) {
+        payload.trend_data = trendData;
+      }
+      
+      const response = await api.post('/api/analyze-trends', payload, { params });
       return response.data;
     } catch (error) {
       console.error('Error analyzing trends:', error);

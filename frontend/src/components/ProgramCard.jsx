@@ -64,6 +64,11 @@ const ProgramCard = ({ program, onClick, isTrending = true }) => {
               <Calendar className="meta-icon" />
               {program.release_year}
             </span>
+            {program.topic_id && (
+              <span className="topic-id">
+                Topic ID: {program.topic_id}
+              </span>
+            )}
           </div>
           
           <div className="program-explanation">

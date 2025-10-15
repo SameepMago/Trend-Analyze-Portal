@@ -64,7 +64,7 @@ function App() {
   };
 
   // Unified analyze function for all tabs
-  const handleAnalyze = async (keywords, setIsLoading, setTrendResults, setProcessingStatus, setError) => {
+  const handleAnalyze = async (keywords, setIsLoading, setTrendResults, setProcessingStatus, setError, trendData = null) => {
     if (!keywords.trim()) {
       setError('Please enter some trending keywords.');
       return;
@@ -91,13 +91,13 @@ function App() {
 
     for (let i = 0; i < keywordLines.length; i++) {
       const line = keywordLines[i];
-      await processSingleTrend(line, i, newTrendResults, newStatus, setTrendResults, setProcessingStatus);
+      await processSingleTrend(line, i, newTrendResults, newStatus, setTrendResults, setProcessingStatus, trendData);
     }
 
     setIsLoading(false);
   };
 
-  const processSingleTrend = async (keywords, index, newTrendResults, newStatus, setTrendResults, setProcessingStatus) => {
+  const processSingleTrend = async (keywords, index, newTrendResults, newStatus, setTrendResults, setProcessingStatus, trendData = null) => {
     try {
       // Generate client_id for this trend
       const clientId = `trend-${index}-${Date.now()}`;
@@ -139,7 +139,7 @@ function App() {
 
       // Call real agent API with client_id
       console.log('Calling agent API for:', keywords, 'with client_id:', clientId);
-      const agentResult = await agentAPI.analyzeTrends([keywords], clientId);
+      const agentResult = await agentAPI.analyzeTrends([keywords], clientId, trendData);
 
       const result = {
         keywords: keywords,

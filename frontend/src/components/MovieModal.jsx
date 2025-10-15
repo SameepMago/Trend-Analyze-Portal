@@ -76,6 +76,25 @@ const MovieModal = ({
                   )}
                 </div>
                 
+                {/* ID Information */}
+                <div className="id-information">
+                  <h3>Identifiers</h3>
+                  <div className="id-list">
+                    {selectedMovie.imdb_id && (
+                      <div className="id-item">
+                        <span className="id-label">IMDB ID:</span>
+                        <span className="id-value">{selectedMovie.imdb_id}</span>
+                      </div>
+                    )}
+                    {selectedMovie.topic_id && (
+                      <div className="id-item">
+                        <span className="id-label">Topic ID:</span>
+                        <span className="id-value">{selectedMovie.topic_id}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
                 {movieDetails && movieDetails.overview && (
                   <div className="movie-overview">
                     <h3>Overview</h3>
