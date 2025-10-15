@@ -660,7 +660,7 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
         print(f"Analyzing trends: {request.keywords}")
         selected_program, error_message, successfully_completed = await agent.run(request.keywords, client_id, manager)
         
-        # Handle successful analysis
+        # Handle the 3 cases: program found, agent error, or no program found
         if selected_program and successfully_completed:
             print(f"Agent found program: {selected_program.get('title', 'Unknown')}")
             
@@ -774,7 +774,7 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
                     print(f"❌ Error inserting trend to topic for trend {trend.get('id', 'unknown')}: {e}")
         
         # Handle agent error (only when not successfully completed)
-        if not successfully_completed:
+        elif not successfully_completed:
             print(f"Agent failed with error: {error_message}")
             
             # Send error log and disconnect WebSocket
