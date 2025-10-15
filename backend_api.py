@@ -658,10 +658,10 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
         
         # Run agent analysis
         print(f"Analyzing trends: {request.keywords}")
-        selected_program, error_message = await agent.run(request.keywords, client_id, manager)
+        selected_program, error_message, successfully_completed = await agent.run(request.keywords, client_id, manager)
         
         # Handle successful analysis
-        if selected_program and not error_message:
+        if selected_program and successfully_completed:
             print(f"Agent found program: {selected_program.get('title', 'Unknown')}")
             
             # Store topic_id for response
@@ -775,9 +775,9 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
                 except Exception as e:
                     print(f"❌ Error inserting trend to topic for trend {trend.get('id', 'unknown')}: {e}")
         
-        # Handle agent error
-        if error_message:
-            print(f"Agent completed with an error: {error_message}")
+        # Handle agent error (only when not successfully completed)
+        if not successfully_completed:
+            print(f"Agent failed with error: {error_message}")
             
             # Send error log and disconnect WebSocket
             if client_id:
@@ -797,9 +797,11 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
                 message="Agent analysis failed"
             )
         
-        # Handle no program found
+        # Handle no program found but agent completed successfully
         else:
-            print("No trending program found")
+            print("Agent completed successfully but no program found")
+            if error_message:
+                print(f"Agent info: {error_message}")
             
             # Send no result log and disconnect WebSocket
             if client_id:
@@ -808,7 +810,7 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
                     "level": "INFO",
                     "category": "RESULT",
                     "message": "Analysis completed - no program found",
-                    "data": {"result": "no_program_found"}
+                    "data": {"result": "no_program_found", "info": error_message}
                 })
                 # Disconnect WebSocket after completion
                 manager.disconnect(client_id)
@@ -817,7 +819,7 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
                 success=True,
                 program_is_trending=False,
                 program=None,
-                message="Agent Completed, but no program was identified and no specific error was returned"
+                message=error_message or "Agent completed successfully but no program was identified"
             )
     
     except HTTPException:
