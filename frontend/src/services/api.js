@@ -1,13 +1,16 @@
 // API service for communicating with the backend
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000';
+// Replace YOUR_IP_ADDRESS with your actual IP (e.g., '192.168.1.100')
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'http://YOUR_IP_ADDRESS:8000'  // Replace with your actual IP
+  : 'http://localhost:8000';       // Local development
 const TMDB_API_KEY = '7fc8f0784594d9068ac175ff860bfe75';
 
 // Create axios instance with default config
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 300000, // 300 seconds timeout for agent processing
+  timeout: 3000000, // 3000 seconds timeout for agent processing
   headers: {
     'Content-Type': 'application/json',
   },
