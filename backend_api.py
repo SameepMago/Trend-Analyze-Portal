@@ -740,7 +740,6 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
                 manager.disconnect(client_id)
             
             return TrendResponse(**response_data)
-        
         # Handle agent error (only when not successfully completed)
         elif not successfully_completed:
             print(f"Agent failed with error: {error_message}")
@@ -762,7 +761,6 @@ async def analyze_trends(request: TrendRequest, client_id: str = Query(None)):
                 error=error_message,
                 message="Agent analysis failed"
             )
-        
         # Handle no program found but agent completed successfully
         else:
             print("Agent completed successfully but no program found")

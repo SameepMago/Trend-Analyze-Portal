@@ -133,7 +133,7 @@ const TrendResultItem = ({
           {trendResult.result.success && !trendResult.result.program && (
             <div className="no-results">
               <Search className="no-results-icon" />
-              <p>No entertainment program found for these keywords.</p>
+              <p>{trendResult.result.message || "No entertainment program found for these keywords."}</p>
             </div>
           )}
 
